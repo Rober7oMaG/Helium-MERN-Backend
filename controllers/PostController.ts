@@ -1,9 +1,16 @@
+import { Request, Response } from 'express';
 import mongoose from "mongoose";
-import Post from "../models/Post.js";
-import User from "../models/User.js";
+import { IFollowingPosts, IPost } from '../interfaces';
+import Post from "../models/Post";
+import User from "../models/User";
 
+type Data = 
+| { message: string}
+| IPost
+| IPost[]
+| []
 
-const createPost = async(req, res) => {
+const createPost = async(req: Request, res: Response<Data>) => {
     const newPost = new Post(req.body);
     
     try {
@@ -14,22 +21,31 @@ const createPost = async(req, res) => {
     }
 };
 
-const getPost = async(req, res) => {
+const getPost = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
+    
     try {
         const post = await Post.findById(id);
+        if (!post) {
+            return res.status(404).json({message: "Post not found."});
+        }
+
         return res.status(200).json(post);
     } catch (error) {
         return res.status(500).json({message: "An error has occurred."});
     }
 };
 
-const updatePost = async(req, res) => {
+const updatePost = async(req: Request, res: Response<Data>) => {
     const { id: postId } = req.params; 
     const { userId } = req.body;
 
     try {
         const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({message: "Post not found."});
+        }
+
         if (post.userId === userId) {
             await post.updateOne({$set: req.body});
             return res.status(200).json({message: "Post updated succesfully."});
@@ -41,12 +57,16 @@ const updatePost = async(req, res) => {
     }
 };
 
-const deletePost = async(req, res) => {
+const deletePost = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
     const { userId } = req.body;
 
     try {
         const post = await Post.findById(id);
+        if (!post) {
+            return res.status(404).json({message: "Post not found."});
+        }
+
         if (post.userId === userId) {
             await post.delete();
             return res.status(200).json({message: "Post deleted succesfully."});
@@ -58,12 +78,16 @@ const deletePost = async(req, res) => {
     }
 };
 
-const likePost = async(req, res) => {
+const likePost = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
     const { userId } = req.body;
 
     try {
         const post = await Post.findById(id);
+        if (!post) {
+            return res.status(404).json({message: "Post not found."});
+        }
+
         if (!post.likes.includes(userId)) {
             await post.updateOne({$push: {likes: userId}});
             return res.status(200).json({message: "Post liked."});
@@ -76,12 +100,12 @@ const likePost = async(req, res) => {
     }
 };
 
-const getTimelinePosts = async(req, res) => {
+const getTimelinePosts = async(req: Request, res: Response<Data>) => {
     const { id: userId } = req.params; 
 
     try {
-        const currentUserPosts = await Post.find({userId});
-        const followingUserPosts = await User.aggregate([
+        const currentUserPosts: IPost[] = await Post.find({userId});
+        const followingUserPosts: IFollowingPosts[] = await User.aggregate([
             {
                 $match: {
                     _id: new mongoose.Types.ObjectId(userId)
@@ -105,11 +129,11 @@ const getTimelinePosts = async(req, res) => {
 
         return res.status(200).
             json(currentUserPosts.
-            concat(...followingUserPosts[0].followingPosts).
-            sort((a, b) => {
-                return b.createdAt - a.createdAt
-            })
-        );
+                concat(...followingUserPosts[0].followingPosts).
+                sort((a, b) => {
+                    return b.createdAt - a.createdAt
+                })
+            );
 
     } catch (error) {
         return res.status(500).json({message: "An error has occurred."});

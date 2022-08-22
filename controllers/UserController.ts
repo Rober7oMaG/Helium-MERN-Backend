@@ -1,6 +1,12 @@
-import User from '../models/User.js';
+import { Request, Response } from 'express';
+import { IUser } from '../interfaces';
+import User from '../models/User';
 
-const getUser = async(req, res) => {
+type Data = 
+| {message: string}
+| IUser
+
+const getUser = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
 
     try {
@@ -16,13 +22,17 @@ const getUser = async(req, res) => {
     }
 };
 
-const updateUser = async(req, res) => {
+const updateUser = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
     const { currentUserId, isCurrentUserAdmin, password } = req.body;
     
     if (id === currentUserId || isCurrentUserAdmin) {
         try {
             const user = await User.findByIdAndUpdate(id, req.body, {new: true});
+
+            if (!user) {
+                return res.status(400).json({message: "User not found"}); 
+            }
 
             return res.status(200).json(user);
         } catch (error) {
@@ -33,7 +43,7 @@ const updateUser = async(req, res) => {
     }
 }
 
-const deleteUser = async(req, res) => {
+const deleteUser = async(req: Request, res: Response<Data>) => {
     const { id } = req.params;
 
     const { currentUserId, isCurrentUserAdmin } = req.body;
@@ -51,10 +61,10 @@ const deleteUser = async(req, res) => {
     }
 };
 
-const followUser = async(req, res) => {
-    const { id } = req.params;
+const followUser = async(req: Request, res: Response<Data>) => {
+    const { id = '' } = req.params;
 
-    const { currentUserId } = req.body;
+    const { currentUserId = '' } = req.body;
 
     if (currentUserId === id) {
         return res.status(403).json({message: "Action forbidden. You can't follow your own account."});
@@ -62,6 +72,14 @@ const followUser = async(req, res) => {
         try {
             const followedUser = await User.findById(id);
             const followingUser = await User.findById(currentUserId);
+
+            if (!followedUser) {
+                return res.status(404).json({message: "User not found"});
+            }
+
+            if (!followingUser) {
+                return res.status(404).json({message: "An error has occurred while following user."});
+            }
 
             if (!followedUser.followers.includes(currentUserId)) {
                 await followedUser.updateOne({$push: {followers: currentUserId}});
@@ -77,10 +95,10 @@ const followUser = async(req, res) => {
     }
 }
 
-const unfollowUser = async(req, res) => {
-    const { id } = req.params;
+const unfollowUser = async(req: Request, res: Response<Data>) => {
+    const { id = '' } = req.params;
 
-    const currentUserId = req.body;
+    const { currentUserId = '' } = req.body;
 
     if (currentUserId === id) {
         return res.status(403).json({message: "Action forbidden. You can't follow your own account."});
@@ -88,6 +106,14 @@ const unfollowUser = async(req, res) => {
         try {
             const followedUser = await User.findById(id);
             const followingUser = await User.findById(currentUserId);
+
+            if (!followedUser) {
+                return res.status(404).json({message: "User not found"});
+            }
+
+            if (!followingUser) {
+                return res.status(404).json({message: "An error has occurred while following user."});
+            }
 
             if (followedUser.followers.includes(currentUserId)) {
                 await followedUser.updateOne({$pull: {followers: currentUserId}});
